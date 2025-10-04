@@ -1,4 +1,5 @@
 import os
+import re
 from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
@@ -28,4 +29,14 @@ def summarize_digest(items):
         input=prompt,
         temperature=0.2,
     )
-    return resp.output_text[:3500]
+    output = resp.output_text[:3500]
+    
+    # Remove Markdown bold (**) and normalize spacing
+    cleaned = re.sub(r"\*\*(.*?)\*\*", r"\1", output)
+    
+    # Optional: add emojis to headings
+    cleaned = cleaned.replace("Key Takeaways:", "📌 Key Takeaways:")\
+                     .replace("Action Items:", "✅ Action Items:")\
+                     .replace("Important Links:", "🔗 Important Links:")
+    
+    return cleaned

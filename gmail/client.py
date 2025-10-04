@@ -10,25 +10,13 @@ def _svc(access_token: str):
 
 def search_ids(access_token: str, q: str, max_results=10):
     service = _svc(access_token)
-    max_results = 10
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-    print(f"MAX RESULTS ARE {max_results}")
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-    print("RAHHHHHHHH")
-
     res = service.users().messages().list(
         userId="me", q=q, maxResults=max_results, includeSpamTrash=False
     ).execute()
     return [m["id"] for m in res.get("messages", [])]
 
 def list_unread_ids(access_token: str, max_results=10):
-    return search_ids(access_token, "is:unread in:inbox", max_results)
+    return search_ids(access_token, "is:unread category:primary", max_results)
 
 def get_message_full(access_token: str, msg_id: str):
     service = _svc(access_token)
