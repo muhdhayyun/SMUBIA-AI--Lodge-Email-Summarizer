@@ -29,24 +29,7 @@ async def digest(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _summarize(update, unread_only=True)
 
 async def latest(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await _summarize(update, unread_only=False)
-    # tg_id = str(update.effective_user.id)
-    # refresh_token = refresh_access_token(tg_id)
-    # if not refresh_token:
-    #     await update.message.reply_text("Please /link your Gmail first.")
-    #     return
-    # new = refresh_access_token(refresh_token)
-    # access = new["access_token"]
-    # update_access_token(tg_id, access, new.get("expiry"))
-    # from gmail.client import search_ids
-    # ids = search_ids(access, "category:primary", max_results=5)
-    # items = []
-    # for mid in ids[:10]:
-    #     msg = get_message_full(access, mid)
-    #     items.append(extract_text(msg))
-
-    # summary = summarize_digest(items)
-    # await update.message.reply_text(summary if summary else "Couldn't summarize.")
+    await update.message.reply_text("Work in Progress :(")
 
 async def _summarize(update: Update, unread_only: bool):
     tg_id = str(update.effective_user.id)
@@ -58,16 +41,10 @@ async def _summarize(update: Update, unread_only: bool):
     access = new["access_token"]
     update_access_token(tg_id, access, new.get("expiry"))
 
-    ids = list_unread_ids(access, 10) if unread_only else \
-          list_unread_ids(access, 10) or []  # change to a search if you want "latest any"
+    ids = list_unread_ids(access, 10)
     if not ids:
         await update.message.reply_text("No emails found 🎉")
         return
-
-    # For "latest", you might want: search_ids(access, "in:inbox", max_results=10)
-    if not unread_only:
-        from gmail.client import search_ids
-        ids = search_ids(access, "category:primary", max_results=2)
 
     items = []
     for mid in ids[:10]:

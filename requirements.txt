@@ -1,4 +1,4 @@
-python-telegram-bot==21.*
+python-telegram-bot[job-queue]>=20.0
 fastapi==0.115.*
 uvicorn==0.30.*
 google-auth==2.*
