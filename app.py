@@ -9,6 +9,8 @@ from auth.google_oauth import build_auth_url, refresh_access_token
 from store.db import init_db, save_state, get_refresh_token, update_access_token, unlink
 from gmail.client import list_unread_ids, get_message_full, extract_text
 from summarize.summarizer import summarize_digest
+from social.social import social
+
 
 # ====== Setup ======
 load_dotenv()
@@ -229,6 +231,7 @@ def main():
     app.add_handler(CommandHandler("link", link))
     app.add_handler(CommandHandler("digest", digest))
     app.add_handler(CommandHandler("unlink", unlink_cmd))
+    app.add_handler(CommandHandler("social", social))
 
     app.run_polling()
 
