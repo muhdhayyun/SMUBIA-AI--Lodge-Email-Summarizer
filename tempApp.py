@@ -1,5 +1,6 @@
 # app.py
 import os, secrets, re, logging
+import time
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -24,6 +25,9 @@ log = logging.getLogger("gmail-bot")
 
 # ====== OTP helpers ======
 SEEN_BY_USER = {}  # tg_id -> set(message_ids)
+BASELINE_BY_USER = {}  # tg_id -> set of message_ids seen at startup
+START_TIME_BY_USER = {}  # tg_id -> timestamp (milliseconds since epoch)
+BOT_START_TIME_MS = int(time.time() * 1000)
 WATCH_INTERVAL_SEC = 10
 
 # OTP patterns (add/remove as needed)
@@ -95,8 +99,26 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Hi! I can summarize your Gmail.\n"
         "Use /link to connect, /digest for unread, /latest for recent, /unlink to disconnect.\n"
-        "Use /watch_otp to auto-forward verification codes, /unwatch_otp to stop."
+        "Auto OTP watcher has been started — I’ll notify you when a new verification code arrives."
     )
+
+    # Automatically start OTP watcher when /start is used
+    tg_id = str(update.effective_user.id)
+    job_name = f"otp_watcher_{tg_id}"
+
+    # Clear any existing watcher for this user
+    for j in ctx.job_queue.get_jobs_by_name(job_name):
+        j.schedule_removal()
+
+    ctx.job_queue.run_repeating(
+        otp_poll_job,
+        interval=WATCH_INTERVAL_SEC,
+        first=0,
+        name=job_name,
+        data={"tg_id": tg_id}
+    )
+
+    log.info("Auto-started OTP watcher for tg_id=%s", tg_id)
 
 async def link(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tg_id = str(update.effective_user.id)
@@ -170,8 +192,13 @@ async def watch_otp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tg_id = str(update.effective_user.id)
     job_name = f"otp_watcher_{tg_id}"
 
+    # Clear existing jobs
     for j in ctx.job_queue.get_jobs_by_name(job_name):
         j.schedule_removal()
+
+    # Record the start time (in ms since epoch)
+    START_TIME_BY_USER[tg_id] = int(time.time() * 1000)
+    SEEN_BY_USER[tg_id] = set()
 
     ctx.job_queue.run_repeating(
         otp_poll_job,
@@ -180,9 +207,13 @@ async def watch_otp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         name=job_name,
         data={"tg_id": tg_id}
     )
+
     await update.message.reply_text(
-        f"OTP watcher started (every {WATCH_INTERVAL_SEC}s). I’ll ping you when a verification code arrives."
+        f"OTP watcher started (every {WATCH_INTERVAL_SEC}s). "
+        f"I’ll only send codes from emails received *after now*."
     )
+
+    log.info("Started OTP watcher for tg_id=%s at %s", tg_id, START_TIME_BY_USER[tg_id])
 
 async def unwatch_otp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     tg_id = str(update.effective_user.id)
@@ -210,7 +241,6 @@ async def otp_poll_job(ctx: ContextTypes.DEFAULT_TYPE):
     try:
         new = refresh_access_token(refresh_token)
         if not new or not new.get("access_token"):
-            log.warning("No access token after refresh for tg_id=%s", tg_id)
             return
         access = new["access_token"]
         update_access_token(tg_id, access, new.get("expiry"))
@@ -223,34 +253,36 @@ async def otp_poll_job(ctx: ContextTypes.DEFAULT_TYPE):
     except Exception:
         log.exception("Failed to list unread for tg_id=%s", tg_id)
         return
-    if not ids:
-        return
 
-    unseen = [m for m in ids if m not in SEEN_BY_USER[tg_id]]
-    if not unseen:
-        return
+    for mid in ids:
+        if mid in SEEN_BY_USER[tg_id]:
+            continue
 
-    for mid in unseen:
         try:
             msg = get_message_full(access, mid)
+            internal_date = int(msg.get("internalDate", "0"))
+
+            # ✅ Ignore old emails
+            if internal_date < BOT_START_TIME_MS:
+                SEEN_BY_USER[tg_id].add(mid)
+                continue
+
             body_raw = extract_text(msg)
             if not body_raw:
                 body_raw = {"snippet": msg.get("snippet", "")}
             body = _to_text(body_raw)
 
-            subject = _header(msg, "Subject") or "(no subject)"
-            from_hdr = _header(msg, "From") or "(unknown sender)"
-            log.info("Scanning msg %s: subject=%r from=%r body_len=%d",
-                     mid, subject, from_hdr, len(body))
-
             otps = _find_otps(body)
             if otps:
+                subject = _header(msg, "Subject") or "(no subject)"
+                from_hdr = _header(msg, "From") or "(unknown sender)"
                 await ctx.bot.send_message(
                     chat_id=int(tg_id),
-                    text=f"🔐 New verification code(s): {', '.join(otps)}\nFrom: {from_hdr}\nSubject: {subject}"
+                    text=f"🔐 New OTP: {', '.join(otps)}\nFrom: {from_hdr}\nSubject: {subject}"
                 )
+
         except Exception:
-            log.exception("Failed processing message %s for tg_id=%s", mid, tg_id)
+            log.exception("Failed to process message %s for tg_id=%s", mid, tg_id)
         finally:
             SEEN_BY_USER[tg_id].add(mid)
 
@@ -277,3 +309,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# Working code baby!
