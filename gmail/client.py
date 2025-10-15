@@ -18,6 +18,9 @@ def search_ids(access_token: str, q: str, max_results=10):
 def list_unread_ids(access_token: str, max_results=10):
     return search_ids(access_token, "is:unread category:primary", max_results)
 
+def list_lastTen_ids(access_token: str, max_results=10):
+    return search_ids(access_token, "category:primary", max_results)
+
 def get_message_full(access_token: str, msg_id: str):
     service = _svc(access_token)
     return service.users().messages().get(userId="me", id=msg_id, format="full").execute()

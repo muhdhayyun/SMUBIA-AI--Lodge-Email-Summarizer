@@ -19,9 +19,10 @@ Emails:
 """
 
 def summarize_digest(items):
-    # items = [{from, subject, text}]
+    if isinstance(items, str):
+        items = [items]
     joined = "\n\n".join(
-        [f"From: {i['from']}\nSubject: {i['subject']}\nBody:\n{i['text'][:4000]}" for i in items]
+        [i if isinstance(i, str) else f"From: {i.get('from','')}\nSubject: {i.get('subject','')}\nBody:\n{i.get('text','')[:4000]}" for i in items]
     )
     prompt = PROMPT_TEMPLATE.format(body=joined)
     resp = _client.responses.create(

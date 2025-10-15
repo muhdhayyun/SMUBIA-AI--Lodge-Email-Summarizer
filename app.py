@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes, JobQueue
 
 from auth.google_oauth import build_auth_url, refresh_access_token
 from store.db import init_db, save_state, get_refresh_token, update_access_token, unlink
-from gmail.client import list_unread_ids, get_message_full, extract_text
+from gmail.client import list_unread_ids, get_message_full, extract_text, list_lastTen_ids
 from summarize.summarizer import summarize_digest
 from social.social import social
 
@@ -136,7 +136,7 @@ async def _summarize(update: Update):
             raise ValueError("Missing access token")
         access = new["access_token"]
         update_access_token(tg_id, access, new.get("expiry"))
-        ids = list_unread_ids(access, 10)
+        ids = list_lastTen_ids(access, 10)
     except Exception as e:
         log.exception("Failed Gmail access for tg_id=%s", tg_id)
         await update.message.reply_text(f"Error fetching emails: {e}")
